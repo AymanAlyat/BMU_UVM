@@ -165,6 +165,59 @@ class scoreboard extends uvm_scoreboard;
             expected_result = packet.a_in | ~packet.b_in;
 
         end
+        ////////////////////////////////
+        else if (packet.ap.lxor) begin
+
+         if (!packet.ap.zbb)
+           expected_result = packet.a_in ^ packet.b_in;      // XOR
+         else
+           expected_result = packet.a_in ^ ~packet.b_in;     // XNOR ==>can you prove it .
+
+        end
+
+        ///////////
+
+        else if (packet.ap.sll) begin
+
+         expected_result = packet.a_in << packet.b_in[4:0];
+
+        end
+
+        else if (packet.ap.srl) begin
+
+          expected_result = packet.a_in >> packet.b_in[4:0];
+
+        end
+       ///////////////////////////////////////////
+
+        else if (packet.ap.sra) begin
+
+          expected_result = packet.a_in >>> packet.b_in[4:0];
+
+        end
+
+
+        ////////////////////////////////
+
+        else if (packet.ap.rol) begin
+
+          expected_result =(packet.a_in << packet.b_in[4:0]) | (packet.a_in >> (32 - packet.b_in[4:0]));
+
+        end
+
+
+
+        ///////////////////////
+        else if (packet.ap.ror) begin
+
+          expected_result = (packet.a_in >> packet.b_in[4:0]) |(packet.a_in << (32 - packet.b_in[4:0]));
+
+        end
+
+
+        
+
+
 
 
 
