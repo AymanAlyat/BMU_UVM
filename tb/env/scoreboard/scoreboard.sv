@@ -18,6 +18,7 @@ class scoreboard extends uvm_scoreboard;
                          ▲
                          │
  current item.result_ff ──┘
+
   
   
   
@@ -213,6 +214,96 @@ class scoreboard extends uvm_scoreboard;
           expected_result = (packet.a_in >> packet.b_in[4:0]) |(packet.a_in << (32 - packet.b_in[4:0]));
 
         end
+
+
+        ////////////////////
+        else if (packet.ap.bset) begin
+
+          expected_result = packet.a_in | (32'b1 << packet.b_in[4:0]);
+
+        end
+
+        //////////////////////////
+        else if (packet.ap.bclr) begin
+
+          expected_result = packet.a_in & ~(32'b1 << packet.b_in[4:0]);
+
+        end
+
+        else if (packet.ap.binv) begin
+
+          expected_result =packet.a_in ^ (32'b1 << packet.b_in[4:0]);
+
+        end
+
+        else if (packet.ap.bext) begin
+
+          expected_result = packet.a_in[packet.b_in[4:0]];
+
+        end
+
+        else if (packet.ap.bext) begin
+
+          expected_result = packet.a_in[packet.b_in[4:0]];
+
+        end
+
+        else if (packet.ap.sh1add) begin
+
+         expected_result = (packet.a_in << 1) + packet.b_in;
+
+        end
+
+        else if (packet.ap.sh2add) begin
+
+          expected_result = (packet.a_in << 2) + packet.b_in;
+
+        end
+
+        else if (packet.ap.sh3add) begin
+
+          expected_result = (packet.a_in << 3) + packet.b_in;
+
+        end
+
+
+        //else if (packet.ap.sub ) wrong
+        else if (packet.ap.sub && !packet.ap.slt) begin//ممكن الاشارتين تكونن واحد ويلقط اشاره الطرح عشان هيك حطيت انه الاشاره الثانيه لازم تكون صفر
+
+          expected_result = packet.a_in - packet.b_in;
+
+        end
+
+
+        else if (packet.ap.slt && packet.ap.sub) begin
+
+          if (packet.ap.unsign)
+
+             expected_result = ($unsigned(packet.a_in) < packet.b_in);
+
+          else
+
+             expected_result = (packet.a_in < $signed(packet.b_in));
+
+        end
+
+        else if (packet.ap.clz) begin
+
+         expected_result = 32;
+
+         for (int i = 31; i >= 0; i--) begin
+           if (packet.a_in[i]) begin
+             expected_result = 31 - i;
+             break;
+            end
+          end
+
+end
+
+
+
+
+
 
 
         
