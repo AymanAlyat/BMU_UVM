@@ -30,7 +30,9 @@ class gorc_operation_seq extends uvm_sequence #(bmu_sequence_item);
 
       // GORC operation
       req.ap.gorc = 1'b1;
+      //req.b_in[4:0] = 5'b00111;
       //try b_in=24 or 7 during simulation 
+      //RTL talk about subset take 7  ==> assign ap_orc_b = ap.gorc & (b_in[4:0] == 5'b00111);
 
       finish_item(req);
 

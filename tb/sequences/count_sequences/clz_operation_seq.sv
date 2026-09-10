@@ -34,7 +34,44 @@ class clz_operation_seq extends uvm_sequence #(bmu_sequence_item);
 
       finish_item(req);
 
+      
+
+
     end
+
+    start_item(req);
+
+      req.ap            = '0;
+      req.rst_l         = 1'b1;
+      req.scan_mode     = 1'b0;
+      req.valid_in      = 1'b1;
+      req.csr_ren_in    = 1'b0;
+      req.csr_rddata_in = 32'b0;
+      req.a_in          = 32'b0;
+      req.b_in          = 32'b0;
+
+      req.ap.clz = 1'b1;
+
+    finish_item(req);
+
+
+    start_item(req);
+
+      req.ap            = '0;
+      req.rst_l         = 1'b1;
+      req.scan_mode     = 1'b0;
+      req.valid_in      = 1'b1;
+      req.csr_ren_in    = 1'b0;
+      req.csr_rddata_in = 32'b0;
+      req.a_in          = 32'h8000_0000;
+      req.b_in          = 32'b0;
+
+      req.ap.clz = 1'b1;
+
+    finish_item(req);
+
+
+
 
   endtask
 

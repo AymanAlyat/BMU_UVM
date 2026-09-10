@@ -34,8 +34,44 @@ class ctz_operation_seq extends uvm_sequence #(bmu_sequence_item);
       //can you try ap.zbb=1 during simulation 
 
       finish_item(req);
-
     end
+
+      //a_in=000000000000000..
+
+      start_item(req);
+
+       req.ap            = '0;
+       req.rst_l         = 1'b1;
+       req.scan_mode     = 1'b0;
+       req.valid_in      = 1'b1;
+       req.csr_ren_in    = 1'b0;
+       req.csr_rddata_in = 32'b0;
+       req.a_in          = 32'b0;
+       req.b_in          = 32'b0;
+
+       req.ap.ctz = 1'b1;
+
+      finish_item(req);
+
+
+         //as a 0+0=0  يعني زي اجرب اقل قيمه واكبر وقيمه
+
+      start_item(req);
+
+       req.ap            = '0;
+       req.rst_l         = 1'b1;
+       req.scan_mode     = 1'b0;
+       req.valid_in      = 1'b1;
+       req.csr_ren_in    = 1'b0;
+       req.csr_rddata_in = 32'b0;
+       req.a_in          = 32'h0000_0001;
+       req.b_in          = 32'b0;
+
+       req.ap.ctz = 1'b1;
+
+      finish_item(req);
+
+    //end
 
   endtask
 
