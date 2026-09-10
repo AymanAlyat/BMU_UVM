@@ -24,6 +24,8 @@ interface Bit_Manipulation_intf(input logic clk);
 
 clocking cb_drv @(negedge clk);
 
+   default input #0 output #0;
+
   output rst_l;
   output scan_mode;
   output valid_in;
@@ -38,6 +40,8 @@ endclocking
 
 
 clocking cb_mon @(posedge clk);
+
+   default input #0 output #0;//default inupt #1 it cause an error.
 
   input rst_l;
   input scan_mode;
