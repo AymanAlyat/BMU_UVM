@@ -21,6 +21,13 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
   bit [1:0] count_operation;
 
 
+  bit sext_operation;//sign extend byte or sign extend H
+  bit sext_sign;// 0 or 1
+
+
+  bit [1:0] arithmetic_operation;//sub,SH1ADD,SH2ADD,SH3ADD
+
+
   covergroup shift_rotate_cg;
   option.per_instance = 1;
 
@@ -170,6 +177,61 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
   endgroup
 
 
+  ///////////////////////////////
+
+  covergroup sext_cg;
+
+    option.per_instance = 1;
+
+    cp_operation: coverpoint sext_operation {
+      bins SEXT_B = {0};
+      bins SEXT_H = {1};
+    }
+
+    cp_sign: coverpoint sext_sign {
+      bins zero = {0};
+      bins one  = {1};
+    }
+
+    operation_sign_cross: cross cp_operation, cp_sign;
+
+  endgroup
+
+
+  /////////////////////
+
+  covergroup arithmetic_cg;
+
+    option.per_instance = 1;
+
+    cp_operation: coverpoint arithmetic_operation {
+      bins SUB    = {2'b00};
+      bins SH1ADD = {2'b01};
+      bins SH2ADD = {2'b10};
+      bins SH3ADD = {2'b11};
+    }
+
+    cp_a: coverpoint $unsigned(packet.a_in) {
+      bins zero   = {32'h0000_0000};
+      bins ones   = {32'hFFFF_FFFF};
+      bins others = {[32'h0000_0001:32'hFFFF_FFFE]};
+    }
+
+    cp_b: coverpoint packet.b_in {
+      bins zero   = {32'h0000_0000};
+      bins ones   = {32'hFFFF_FFFF};
+      bins others = {[32'h0000_0001:32'hFFFF_FFFE]};
+    }
+
+    operation_inputs_cross: cross cp_operation, cp_a, cp_b;
+
+  endgroup
+
+
+
+
+
+
 
 
 
@@ -183,6 +245,8 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     logic_cg = new();
     compare_cg = new();
     count_cg = new();
+    sext_cg = new();
+    arithmetic_cg = new();
 
   endfunction
 
@@ -197,6 +261,8 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     sample_logic();
     sample_compare();
     sample_count();
+    sample_sext();
+    sample_arithmetic();
 
 
 
@@ -242,6 +308,20 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
       "COVERAGE",
       $sformatf("Count coverage = %0.2f%%",
                 count_cg.get_coverage()),
+      UVM_LOW
+    )
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("Sign extension coverage = %0.2f%%",
+                sext_cg.get_coverage()),
+      UVM_LOW
+    )
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("Arithmetic coverage = %0.2f%%",
+                arithmetic_cg.get_coverage()),
       UVM_LOW
     )
 
@@ -557,6 +637,106 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
         packet.ap == selected_ap) begin
 
       count_cg.sample();
+
+    end
+
+  endfunction
+
+
+  ///////////////////////////////////////////
+
+
+  function void sample_sext();
+
+    int count;
+    rtl_alu_pkt_t selected_ap;
+
+    count = 0;
+
+    if (packet.ap.siext_b) begin
+      count++;
+      sext_operation = 0;
+      sext_sign = packet.a_in[7];
+    end
+
+    if (packet.ap.siext_h) begin
+      count++;
+      sext_operation = 1;
+      sext_sign = packet.a_in[15];
+    end
+
+
+    selected_ap = '0;
+
+    selected_ap.siext_b = packet.ap.siext_b;
+    selected_ap.siext_h = packet.ap.siext_h;
+
+
+    if (packet.rst_l == 1 &&
+        packet.valid_in == 1 &&
+        packet.csr_ren_in == 0 &&
+        count == 1 &&
+        packet.ap == selected_ap) begin
+
+      sext_cg.sample();
+
+    end
+
+  endfunction
+
+
+  ///////////////
+
+
+  function void sample_arithmetic();
+
+    int count;
+    rtl_alu_pkt_t selected_ap;
+
+    count = 0;
+
+    if (packet.ap.sub) begin
+      count++;
+      arithmetic_operation = 2'b00;
+    end
+
+    if (packet.ap.sh1add) begin
+      count++;
+      arithmetic_operation = 2'b01;
+    end
+
+    if (packet.ap.sh2add) begin
+      count++;
+      arithmetic_operation = 2'b10;
+    end
+
+    if (packet.ap.sh3add) begin
+      count++;
+      arithmetic_operation = 2'b11;
+    end
+
+
+    selected_ap = '0;
+
+    selected_ap.sub    = packet.ap.sub;
+    selected_ap.sh1add = packet.ap.sh1add;
+    selected_ap.sh2add = packet.ap.sh2add;
+    selected_ap.sh3add = packet.ap.sh3add;
+
+    // SHxADD requires zba = 1. Standalone SUB requires zba = 0.
+    if (packet.ap.sh1add ||
+        packet.ap.sh2add ||
+        packet.ap.sh3add)
+      selected_ap.zba = 1;
+
+
+    if (packet.rst_l == 1 &&
+        packet.valid_in == 1 &&
+        packet.csr_ren_in == 0 &&
+        count == 1 &&
+        packet.ap == selected_ap) begin
+
+      arithmetic_cg.sample();
 
     end
 
