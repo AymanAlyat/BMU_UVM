@@ -34,6 +34,15 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
   bit [1:0] pack_b_kind;
 
 
+
+  bit reverse_operation;//GREV, GORC
+
+
+
+  bit [1:0] csr_operation;
+  logic [31:0] csr_data;
+
+
   covergroup shift_rotate_cg;
   option.per_instance = 1;
 
@@ -261,6 +270,50 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     operation_inputs_cross: cross cp_operation, cp_a, cp_b;
 
   endgroup
+  /////////////////////////////
+
+
+  covergroup reverse_cg;
+
+    option.per_instance = 1;
+
+    cp_operation: coverpoint reverse_operation {
+      bins GREV = {0};
+      bins GORC = {1};
+    }
+
+    cp_input: coverpoint $unsigned(packet.a_in) {
+      bins zero   = {32'h0000_0000};
+      bins ones   = {32'hFFFF_FFFF};
+      bins others = {[32'h0000_0001:32'hFFFF_FFFE]};
+    }
+
+    operation_input_cross: cross cp_operation, cp_input;
+
+  endgroup
+
+
+  ///////////////////////////////////////
+
+  covergroup csr_cg;
+
+    option.per_instance = 1;
+
+    cp_operation: coverpoint csr_operation {
+      bins READ    = {2'b00};
+      bins WRITE_A = {2'b01};
+      bins WRITE_B = {2'b10};
+    }
+
+    cp_data: coverpoint csr_data {
+      bins zero   = {32'h0000_0000};
+      bins ones   = {32'hFFFF_FFFF};
+      bins others = {[32'h0000_0001:32'hFFFF_FFFE]};
+    }
+
+    operation_data_cross: cross cp_operation, cp_data;
+
+  endgroup
 
 
 
@@ -283,6 +336,8 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     sext_cg = new();
     arithmetic_cg = new();
     pack_cg = new();
+    reverse_cg = new();
+    csr_cg = new();
 
   endfunction
 
@@ -300,7 +355,8 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     sample_sext();
     sample_arithmetic();
     sample_pack();
-    
+    sample_reverse();
+    sample_csr();
 
 
 
@@ -367,6 +423,22 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
       "COVERAGE",
       $sformatf("Pack coverage = %0.2f%%",
                 pack_cg.get_coverage()),
+      UVM_LOW
+    )
+
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("Reverse coverage = %0.2f%%",
+                reverse_cg.get_coverage()),
+      UVM_LOW
+    )
+
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("CSR coverage = %0.2f%%",
+                csr_cg.get_coverage()),
       UVM_LOW
     )
 
@@ -859,6 +931,110 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
         pack_b_kind = 2;
 
       pack_cg.sample();
+
+    end
+
+  endfunction
+
+  ///////////////////////////////////////
+
+  function void sample_reverse();
+
+    int count;
+    rtl_alu_pkt_t selected_ap;
+
+    count = 0;
+
+    if (packet.ap.grev) begin
+      count++;
+      reverse_operation = 0;
+    end
+
+    if (packet.ap.gorc) begin
+      count++;
+      reverse_operation = 1;
+    end
+
+
+    selected_ap = '0;
+
+    selected_ap.grev = packet.ap.grev;
+    selected_ap.gorc = packet.ap.gorc;
+
+
+    if (packet.rst_l == 1 &&
+        packet.valid_in == 1 &&
+        packet.csr_ren_in == 0 &&
+        count == 1 &&
+        packet.ap == selected_ap) begin
+
+      if (packet.ap.grev) begin
+
+        if (packet.b_in[4:0] == 24)
+          reverse_cg.sample();
+
+      end
+
+      else if (packet.ap.gorc) begin
+
+        if (packet.b_in[4:0] == 7)
+          reverse_cg.sample();
+
+      end
+
+    end
+
+  endfunction
+
+  ///////////////////////////////////////
+  function void sample_csr();
+
+    rtl_alu_pkt_t selected_ap;
+
+    selected_ap = '0;
+
+    if (packet.rst_l == 1 &&
+        packet.valid_in == 1) begin
+
+      // CSR read: all ap controls must be zero.
+      if (packet.csr_ren_in == 1 &&
+          packet.ap == selected_ap) begin//يعني فش عمليه ثانيه فعاله
+
+        csr_operation = 2'b00;
+        csr_data = packet.csr_rddata_in;
+
+        csr_cg.sample();
+
+      end
+
+      // CSR write.
+      else if (packet.csr_ren_in == 0 &&
+              packet.ap.csr_write == 1) begin
+
+        selected_ap.csr_write = 1;
+        selected_ap.csr_imm = packet.ap.csr_imm;
+
+        if (packet.ap == selected_ap) begin
+
+          if (packet.ap.csr_imm == 0) begin
+
+            csr_operation = 2'b01;
+            csr_data = packet.a_in;
+
+          end
+
+          else begin
+
+            csr_operation = 2'b10;
+            csr_data = packet.b_in;
+
+          end
+
+          csr_cg.sample();
+
+        end
+
+      end
 
     end
 
