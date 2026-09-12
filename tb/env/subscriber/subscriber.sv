@@ -5,6 +5,7 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
 
   bmu_sequence_item packet;
 
+
   //هس هو في طريقه ثانيه بس هاي انا مستوعبها اكثر الطريقه الثانيه مثلا عندك ست عمليات بدك ست بتات اول عمليه بتحط البت الاول واحد والعمليه الثانيه بتحط البت الثاني واحد وهيكا يعني بكون بت واحد من هذول السته فعال
   bit [2:0] operation;
   bit [1:0] bit_operation;
@@ -15,6 +16,9 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
   // operation (SLT,SLTU,MIN,MAX)  relation(LESS Greatetr Equal)
   bit [1:0] compare_operation;
   bit [1:0] compare_relation;
+
+
+  bit [1:0] count_operation;
 
 
   covergroup shift_rotate_cg;
@@ -142,6 +146,32 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
 
 
 
+  ////////////////////////////
+
+
+  covergroup count_cg;
+
+    option.per_instance = 1;
+
+    cp_operation: coverpoint count_operation {
+      bins CLZ  = {2'b00};
+      bins CTZ  = {2'b01};
+      bins CPOP = {2'b10};
+    }
+
+    cp_input: coverpoint $unsigned(packet.a_in) {
+      bins zero   = {32'h0000_0000};
+      bins ones   = {32'hFFFF_FFFF};
+      bins others = {[32'h0000_0001:32'hFFFF_FFFE]};
+    }
+
+    operation_input_cross: cross cp_operation, cp_input;
+
+  endgroup
+
+
+
+
 
 
 /////////////////
@@ -152,6 +182,7 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     bit_operations_cg = new();
     logic_cg = new();
     compare_cg = new();
+    count_cg = new();
 
   endfunction
 
@@ -165,6 +196,7 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     sample_bit_operations();
     sample_logic();
     sample_compare();
+    sample_count();
 
 
 
@@ -202,6 +234,14 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
       "COVERAGE",
       $sformatf("Compare coverage = %0.2f%%",
                 compare_cg.get_coverage()),
+      UVM_LOW
+    )
+
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("Count coverage = %0.2f%%",
+                count_cg.get_coverage()),
       UVM_LOW
     )
 
@@ -471,6 +511,54 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
         
         
         */
+
+  endfunction
+
+
+
+
+  ///////////////////////////////////
+
+
+  function void sample_count();
+
+    int count;
+    rtl_alu_pkt_t selected_ap;
+
+    count = 0;
+
+    if (packet.ap.clz) begin
+      count++;
+      count_operation = 2'b00;
+    end
+
+    if (packet.ap.ctz) begin
+      count++;
+      count_operation = 2'b01;
+    end
+
+    if (packet.ap.cpop) begin
+      count++;
+      count_operation = 2'b10;
+    end
+
+
+    selected_ap = '0;
+
+    selected_ap.clz  = packet.ap.clz;
+    selected_ap.ctz  = packet.ap.ctz;
+    selected_ap.cpop = packet.ap.cpop;
+
+
+    if (packet.rst_l == 1 &&
+        packet.valid_in == 1 &&
+        packet.csr_ren_in == 0 &&
+        count == 1 &&
+        packet.ap == selected_ap) begin
+
+      count_cg.sample();
+
+    end
 
   endfunction
 
