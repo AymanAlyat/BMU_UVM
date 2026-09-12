@@ -4,6 +4,7 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
 
   bmu_sequence_item packet;
   bit [2:0] operation;
+  bit [1:0] bit_operation;
 
 
   covergroup shift_rotate_cg;
@@ -26,12 +27,39 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     operation_shift_cross: cross cp_operation, cp_shift_amount;
 
   endgroup
+  ///////////////
+
+  covergroup bit_operations_cg;
+
+    cp_operation: coverpoint bit_operation {
+      bins BSET = {2'b00};
+      bins BCLR = {2'b01};
+      bins BINV = {2'b10};
+      bins BEXT = {2'b11};
+    }
+
+    cp_bit_position: coverpoint packet.b_in[4:0] {
+      bins zero   = {0};
+      bins one    = {1};
+      bins middle = {[2:30]};
+      bins last   = {31};
+    }
+
+    operation_bit_cross: cross cp_operation, cp_bit_position;
+
+  endgroup
 
 
+
+
+
+
+/////////////////
   function new(string name = "subscriber", uvm_component parent = null);
 
     super.new(name, parent);
     shift_rotate_cg = new();
+    bit_operations_cg = new();
 
   endfunction
 
@@ -42,6 +70,7 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
 
     packet = t;//packe pointer on t . t.ap.sll read the same signal  packet.ap.sll
     sample_shift_rotate();
+    sample_bit_operations();
 
 
 
@@ -111,5 +140,71 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     end
 
  endfunction
+
+
+ /////////////////////////////////////////////////
+
+ function void sample_bit_operations();
+
+    int count;
+    rtl_alu_pkt_t selected_ap;
+
+    count = 0;
+
+    if (packet.ap.bset) begin
+      count++;
+      bit_operation = 2'b00;
+    end
+
+    if (packet.ap.bclr) begin
+      count++;
+      bit_operation = 2'b01;
+    end
+
+    if (packet.ap.binv) begin
+      count++;
+      bit_operation = 2'b10;
+    end
+
+    if (packet.ap.bext) begin
+      count++;
+      bit_operation = 2'b11;
+    end
+
+
+    selected_ap = '0;
+
+    selected_ap.bset = packet.ap.bset;
+    selected_ap.bclr = packet.ap.bclr;
+    selected_ap.binv = packet.ap.binv;
+    selected_ap.bext = packet.ap.bext;
+
+
+    if (packet.rst_l == 1 &&
+        packet.valid_in == 1 &&
+        packet.csr_ren_in == 0 &&
+        count == 1 &&
+        packet.ap == selected_ap) begin
+
+      bit_operations_cg.sample();
+
+    end
+
+  endfunction
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ ///////////////////////////////////
 
 endclass
