@@ -28,6 +28,12 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
   bit [1:0] arithmetic_operation;//sub,SH1ADD,SH2ADD,SH3ADD
 
 
+
+  bit [1:0] pack_operation;
+  bit [1:0] pack_a_kind;
+  bit [1:0] pack_b_kind;
+
+
   covergroup shift_rotate_cg;
   option.per_instance = 1;
 
@@ -227,6 +233,35 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
 
   endgroup
 
+  ////////////////////////////////////
+
+
+  covergroup pack_cg;
+
+    option.per_instance = 1;
+
+    cp_operation: coverpoint pack_operation {
+      bins PACK  = {2'b00};
+      bins PACKU = {2'b01};
+      bins PACKH = {2'b10};
+    }
+
+    cp_a: coverpoint pack_a_kind {
+      bins zero   = {0};
+      bins ones   = {1};
+      bins others = {2};
+    }
+
+    cp_b: coverpoint pack_b_kind {
+      bins zero   = {0};
+      bins ones   = {1};
+      bins others = {2};
+    }
+
+    operation_inputs_cross: cross cp_operation, cp_a, cp_b;
+
+  endgroup
+
 
 
 
@@ -247,6 +282,7 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     count_cg = new();
     sext_cg = new();
     arithmetic_cg = new();
+    pack_cg = new();
 
   endfunction
 
@@ -263,6 +299,8 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     sample_count();
     sample_sext();
     sample_arithmetic();
+    sample_pack();
+    
 
 
 
@@ -322,6 +360,13 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
       "COVERAGE",
       $sformatf("Arithmetic coverage = %0.2f%%",
                 arithmetic_cg.get_coverage()),
+      UVM_LOW
+    )
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("Pack coverage = %0.2f%%",
+                pack_cg.get_coverage()),
       UVM_LOW
     )
 
@@ -737,6 +782,83 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
         packet.ap == selected_ap) begin
 
       arithmetic_cg.sample();
+
+    end
+
+  endfunction
+
+
+  ///////////////////////////////////////////////
+
+
+
+  function void sample_pack();
+
+    int count;
+    rtl_alu_pkt_t selected_ap;
+
+    logic [15:0] a_part;
+    logic [15:0] b_part;
+    logic [15:0] ones_value;
+
+    count = 0;
+
+    if (packet.ap.pack) begin
+      count++;
+      pack_operation = 2'b00;
+
+      a_part = packet.a_in[15:0];
+      b_part = packet.b_in[15:0];
+      ones_value = 16'hFFFF;
+    end
+
+    if (packet.ap.packu) begin
+      count++;
+      pack_operation = 2'b01;
+
+      a_part = packet.a_in[31:16];
+      b_part = packet.b_in[31:16];
+      ones_value = 16'hFFFF;
+    end
+
+    if (packet.ap.packh) begin
+      count++;
+      pack_operation = 2'b10;
+
+      a_part = {8'b0, packet.a_in[7:0]};
+      b_part = {8'b0, packet.b_in[7:0]};
+      ones_value = 16'h00FF;
+    end
+
+
+    selected_ap = '0;
+
+    selected_ap.pack  = packet.ap.pack;
+    selected_ap.packu = packet.ap.packu;
+    selected_ap.packh = packet.ap.packh;
+
+
+    if (packet.rst_l == 1 &&
+        packet.valid_in == 1 &&
+        packet.csr_ren_in == 0 &&
+        count == 1 &&
+        packet.ap == selected_ap) begin
+
+      if (a_part == 0)
+        pack_a_kind = 0;
+      else if (a_part == ones_value)
+        pack_a_kind = 1;
+      else
+        pack_a_kind = 2;
+
+      if (b_part == 0)
+        pack_b_kind = 0;
+      else if (b_part == ones_value)
+        pack_b_kind = 1;
+      else
+        pack_b_kind = 2;
+
+      pack_cg.sample();
 
     end
 
