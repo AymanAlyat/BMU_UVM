@@ -11,6 +11,12 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
   bit [2:0] logic_operation;//AND,....
 
 
+
+  // operation (SLT,SLTU,MIN,MAX)  relation(LESS Greatetr Equal)
+  bit [1:0] compare_operation;
+  bit [1:0] compare_relation;
+
+
   covergroup shift_rotate_cg;
   option.per_instance = 1;
 
@@ -108,6 +114,33 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
 
 
 
+  /////////////////////////////////////
+
+
+
+  covergroup compare_cg;
+
+    option.per_instance = 1;
+
+    cp_operation: coverpoint compare_operation {
+      bins SLT  = {2'b00};
+      bins SLTU = {2'b01};
+      bins MIN  = {2'b10};
+      bins MAX  = {2'b11};
+    }
+
+    cp_relation: coverpoint compare_relation {
+      bins less    = {2'b00};
+      bins equal   = {2'b01};
+      bins greater = {2'b10};
+    }
+
+    operation_relation_cross: cross cp_operation, cp_relation;
+
+  endgroup
+
+
+
 
 
 
@@ -118,6 +151,7 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     shift_rotate_cg = new();
     bit_operations_cg = new();
     logic_cg = new();
+    compare_cg = new();
 
   endfunction
 
@@ -130,6 +164,7 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     sample_shift_rotate();
     sample_bit_operations();
     sample_logic();
+    sample_compare();
 
 
 
@@ -159,6 +194,14 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
       "COVERAGE",
       $sformatf("Logic coverage = %0.2f%%",
                 logic_cg.get_coverage()),
+      UVM_LOW
+    )
+
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("Compare coverage = %0.2f%%",
+                compare_cg.get_coverage()),
       UVM_LOW
     )
 
@@ -336,6 +379,98 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
       logic_cg.sample();
 
     end
+
+  endfunction
+
+
+
+
+
+  /////////////////////////
+
+
+
+  function void sample_compare();
+
+    int count;
+    rtl_alu_pkt_t selected_ap;
+
+    count = 0;
+
+    if (packet.ap.slt) begin
+      count++;
+
+      if (packet.ap.unsign == 0)
+        compare_operation = 2'b00;
+      else
+        compare_operation = 2'b01;
+    end
+
+    if (packet.ap.min) begin
+      count++;
+      compare_operation = 2'b10;
+    end
+
+    if (packet.ap.max) begin
+      count++;
+      compare_operation = 2'b11;
+    end
+
+
+    selected_ap = '0;
+
+    selected_ap.slt = packet.ap.slt;
+    selected_ap.min = packet.ap.min;
+    selected_ap.max = packet.ap.max;
+    selected_ap.sub = 1'b1;
+
+    // Unsigned mode is allowed here only for SLT.
+    //يعني هاي بتسمح نغطي اللي مع اشاره واللي بدون اشاره واذا اصلا مش مفعله هاي السجنال خلص كلشي بضل اصفار
+    if (packet.ap.slt)
+      selected_ap.unsign = packet.ap.unsign;//الشرط ضروري لانه اذا العمليه كانت ماكس والاشاره تاعه الساين كانت واحد هيك بنصير  نشتغل الماكس  بدون الاشاره وهيك مخالف للسبسفكيشن
+
+
+    if (packet.rst_l == 1 &&
+        packet.valid_in == 1 &&
+        packet.csr_ren_in == 0 &&
+        count == 1 &&
+        packet.ap == selected_ap) begin
+
+          // SLTU: unsigned comparison.
+          if (compare_operation == 2'b01) begin
+
+            if ($unsigned(packet.a_in) < $unsigned(packet.b_in))
+              compare_relation = 2'b00;
+            else if (packet.a_in == packet.b_in)
+              compare_relation = 2'b01;
+            else
+              compare_relation = 2'b10;
+
+          end
+
+          // SLT, MIN and MAX: signed comparison.
+          //انا جربت الرقم كذا وكذا مع  الماكس مثلا
+          else begin
+
+            if ($signed(packet.a_in) < $signed(packet.b_in))
+              compare_relation = 2'b00;
+            else if (packet.a_in == packet.b_in)
+              compare_relation = 2'b01;
+            else
+              compare_relation = 2'b10;
+
+          end
+
+          compare_cg.sample();
+
+        end
+
+
+        /*
+        عني اللي افهمه انت بتجرب اوبريشن ورقمين اذا بكت الاوبريشن SLTU الارقام بتتعامل معهن كunsignedوبتشوف هل انت جربت الاكبر او الاغصر او يساوي واتذاSLTوماكس وهذول بتشوف الرقمين ك رقمين اشارات
+        
+        
+        */
 
   endfunction
 
