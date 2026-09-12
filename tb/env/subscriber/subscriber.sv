@@ -1,13 +1,18 @@
 class subscriber extends uvm_subscriber #(bmu_sequence_item);
 
   `uvm_component_utils(subscriber)
+  //الاب انشئ المدخل انا ماليش علاقه
 
   bmu_sequence_item packet;
+
+  //هس هو في طريقه ثانيه بس هاي انا مستوعبها اكثر الطريقه الثانيه مثلا عندك ست عمليات بدك ست بتات اول عمليه بتحط البت الاول واحد والعمليه الثانيه بتحط البت الثاني واحد وهيكا يعني بكون بت واحد من هذول السته فعال
   bit [2:0] operation;
   bit [1:0] bit_operation;
+  bit [2:0] logic_operation;//AND,....
 
 
   covergroup shift_rotate_cg;
+  option.per_instance = 1;
 
     cp_operation: coverpoint operation {
       bins SLL = {3'b000};
@@ -26,10 +31,27 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
 
     operation_shift_cross: cross cp_operation, cp_shift_amount;
 
+    //how to calculate coverage percent
+    /*
+    
+    cp_operation :  4/5   ===> 4 done ,however 1 not try yet .يعني جربت اربع عمليات وطلع عندي نسبه اسمها اكس
+    cp_shift_amount: 4/4 ===> all value try it .وبطلع عندي نسبه اسمها صاد
+    cross:طلع عندي مثلا 50 احتمال انا جربت منهن 20 ف كمان بطلع هون نسبه
+
+    total percent= sumation percentage/number cp. وبطلع نسبه نهائيه 
+    
+    
+    
+    
+    
+    */
+
+
   endgroup
   ///////////////
 
   covergroup bit_operations_cg;
+  option.per_instance = 1;
 
     cp_operation: coverpoint bit_operation {
       bins BSET = {2'b00};
@@ -52,6 +74,41 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
 
 
 
+  /////////////////////////////////////////////////
+
+
+  covergroup logic_cg;
+
+    option.per_instance = 1;
+
+    cp_operation: coverpoint logic_operation {
+      bins AND_OP = {3'b000};
+      bins ANDN   = {3'b001};
+      bins OR_OP  = {3'b010};
+      bins ORN    = {3'b011};
+      bins XOR_OP = {3'b100};
+      bins XNOR   = {3'b101};
+    }
+
+    cp_a: coverpoint $unsigned(packet.a_in) {//logic operation dont care sign 
+      bins zero   = {32'h0000_0000};
+      bins ones   = {32'hFFFF_FFFF};
+      bins others = {[32'h0000_0001:32'h7FFF_FFFF]};
+    }
+
+    cp_b: coverpoint packet.b_in {
+      bins zero   = {32'h0000_0000};
+      bins ones   = {32'hFFFF_FFFF};
+      bins others = {[32'h0000_0001:32'hFFFF_FFFE]};
+    }
+
+    operation_inputs_cross: cross cp_operation, cp_a, cp_b;
+
+  endgroup
+
+
+
+
 
 
 /////////////////
@@ -60,6 +117,7 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     super.new(name, parent);
     shift_rotate_cg = new();
     bit_operations_cg = new();
+    logic_cg = new();
 
   endfunction
 
@@ -71,8 +129,38 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
     packet = t;//packe pointer on t . t.ap.sll read the same signal  packet.ap.sll
     sample_shift_rotate();
     sample_bit_operations();
+    sample_logic();
 
 
+
+  endfunction
+
+
+  function void report_phase(uvm_phase phase);
+
+    super.report_phase(phase);
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("Shift/Rotate coverage = %0.2f%%",
+                shift_rotate_cg.get_coverage()),
+      UVM_LOW
+    )
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("Bit operations coverage = %0.2f%%",
+                bit_operations_cg.get_coverage()),
+      UVM_LOW
+    )
+
+
+    `uvm_info(
+      "COVERAGE",
+      $sformatf("Logic coverage = %0.2f%%",
+                logic_cg.get_coverage()),
+      UVM_LOW
+    )
 
   endfunction
 
@@ -187,6 +275,65 @@ class subscriber extends uvm_subscriber #(bmu_sequence_item);
         packet.ap == selected_ap) begin
 
       bit_operations_cg.sample();
+
+    end
+
+  endfunction
+
+
+
+  //////////////////////////////////
+
+  function void sample_logic();
+
+    int count;
+    rtl_alu_pkt_t selected_ap;
+
+    count = 0;
+
+    if (packet.ap.land) begin
+      count++;
+
+      if (packet.ap.zbb == 0)
+        logic_operation = 3'b000;
+      else
+        logic_operation = 3'b001;
+    end
+
+    if (packet.ap.lor) begin
+      count++;
+
+      if (packet.ap.zbb == 0)
+        logic_operation = 3'b010;
+      else
+        logic_operation = 3'b011;
+    end
+
+    if (packet.ap.lxor) begin
+      count++;
+
+      if (packet.ap.zbb == 0)
+        logic_operation = 3'b100;
+      else
+        logic_operation = 3'b101;
+    end
+
+
+    selected_ap = '0;
+
+    selected_ap.land = packet.ap.land;
+    selected_ap.lor  = packet.ap.lor;
+    selected_ap.lxor = packet.ap.lxor;
+    selected_ap.zbb  = packet.ap.zbb;
+
+
+    if (packet.rst_l == 1 &&
+        packet.valid_in == 1 &&
+        packet.csr_ren_in == 0 &&
+        count == 1 &&
+        packet.ap == selected_ap) begin
+
+      logic_cg.sample();
 
     end
 
